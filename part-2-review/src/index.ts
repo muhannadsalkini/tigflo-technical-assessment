@@ -1,5 +1,8 @@
+import "dotenv/config";
 import express, { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import helmet from "helmet";
+import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import recordsRoutes from "./routes/records.routes";
 import filesRoutes from "./routes/files.routes";
@@ -10,6 +13,8 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+app.use(helmet());
+app.use(cors());
 app.use(express.json());
 
 // Routes
@@ -40,9 +45,7 @@ app.get("/users/me", authMiddleware, async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({
-      error: "Internal server error",
-      details: error.message,
-      stack: error.stack,
+      error: "Internal server error"
     });
   }
 });

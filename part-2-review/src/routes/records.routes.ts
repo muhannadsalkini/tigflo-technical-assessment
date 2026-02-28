@@ -1,9 +1,16 @@
 import { Router, Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import { z } from "zod";
 import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const recordSchema = z.object({
+  patientName: z.string().min(1),
+  diagnosis: z.string().min(1),
+  notes: z.string().optional(),
+});
 
 /**
  * GET /records
@@ -26,9 +33,7 @@ router.get("/", authMiddleware, async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({
-      error: "Internal server error",
-      details: error.message,
-      stack: error.stack,
+      error: "Internal server error"
     });
   }
 });
@@ -42,17 +47,22 @@ router.get("/search", authMiddleware, async (req: Request, res: Response) => {
   try {
     const { name } = req.query;
 
-    if (!name) {
+    if (!name || typeof name !== "string") {
       return res.status(400).json({
         success: false,
-        error: "Search parameter 'name' is required",
+        error: "Search parameter 'name' is required and must be a string",
       });
     }
 
-    // Using raw query for case-insensitive search
-    const results = await prisma.$queryRawUnsafe(
-      `SELECT * FROM "Record" WHERE "patientName" ILIKE '%${name}%'`
-    );
+    // Fix SQL Injection by using Prisma ORM safe query
+    const results = await prisma.record.findMany({
+      where: {
+        patientName: {
+          contains: name,
+          mode: "insensitive"
+        }
+      }
+    });
 
     return res.status(200).json({
       success: true,
@@ -60,9 +70,7 @@ router.get("/search", authMiddleware, async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({
-      error: "Internal server error",
-      details: error.message,
-      stack: error.stack,
+      error: "Internal server error"
     });
   }
 });
@@ -95,9 +103,7 @@ router.get("/:id", authMiddleware, async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({
-      error: "Internal server error",
-      details: error.message,
-      stack: error.stack,
+      error: "Internal server error"
     });
   }
 });
@@ -108,7 +114,15 @@ router.get("/:id", authMiddleware, async (req: Request, res: Response) => {
  */
 router.post("/", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { patientName, diagnosis, notes } = req.body;
+    const validatedData = recordSchema.safeParse(req.body);
+    if (!validatedData.success) {
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed"
+      });
+    }
+
+    const { patientName, diagnosis, notes } = validatedData.data;
 
     const record = await prisma.record.create({
       data: {
@@ -125,9 +139,7 @@ router.post("/", authMiddleware, async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({
-      error: "Internal server error",
-      details: error.message,
-      stack: error.stack,
+      error: "Internal server error"
     });
   }
 });
