@@ -1,0 +1,27 @@
+import { Request, Response, NextFunction } from 'express';
+import { ZodSchema } from 'zod';
+import { sendError } from '../utils/apiResponse';
+
+type Target = 'body' | 'query';
+
+/**
+ * Middleware factory that validates req.body or req.query against a Zod schema.
+ * Replaces the target with the parsed (and coerced) data on success.
+ */
+export function validate(schema: ZodSchema, target: Target = 'body') {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const result = schema.safeParse(req[target]);
+
+    if (!result.success) {
+      const message = result.error.errors
+        .map((e) => (e.path.length ? `${e.path.join('.')}: ${e.message}` : e.message))
+        .join('; ');
+      sendError(res, message, 400);
+      return;
+    }
+
+    // Assign validated & coerced data back to the request
+    (req as unknown as Record<string, unknown>)[target] = result.data;
+    next();
+  };
+}
